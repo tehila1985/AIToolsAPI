@@ -1,4 +1,6 @@
-﻿using Dto;
+﻿using Api.Auth;
+using Dto;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services;
 using System.Collections.Generic;
@@ -11,15 +13,14 @@ namespace Api.Controllers
     {
         private readonly ILogger<ProductController> _logger;
         private readonly IProductService _s;
-        private readonly IUserServices _userService; 
 
-        public ProductController(IProductService i, ILogger<ProductController> logger, IUserServices userService)
+        public ProductController(IProductService i, ILogger<ProductController> logger)
         {
             _s = i;
             _logger = logger;
-            _userService = userService; 
         }
 
+        [AllowAnonymous]
         [HttpGet]
         public async Task<Dto_result_product> Gets(
             [FromQuery] int position,
@@ -33,19 +34,10 @@ namespace Api.Controllers
             return await _s.GetProducts(position, skip, desc, minPrice, maxPrice, categoryIds, styleIds);
         }
 
+        [AuthorizeRole("Admin")]
         [HttpPost]
-        public async Task<ActionResult<DtoProduct_Id_Name_Category_Price_Desc_Image>> Post(
-            [FromBody] DtoProduct_Name_Description_Price_Stock_CategoryId_IsActive_StyleIds productDto, 
-            [FromHeader] int userId,  
-            [FromHeader] string password)
+        public async Task<ActionResult<DtoProduct_Id_Name_Category_Price_Desc_Image>> Post([FromBody] DtoProduct_Name_Description_Price_Stock_CategoryId_IsActive_StyleIds productDto)
         {
-            
-            bool isAdmin = await _userService.IsAdminById(userId, password);
-            if (!isAdmin)
-            {
-                return Forbid("גישה נדחתה: דרושות הרשאות מנהל לביצוע פעולה זו");
-            }
-
             DtoProduct_Id_Name_Category_Price_Desc_Image res = await _s.AddNewProduct(productDto);
             if (res != null)
             {
@@ -54,19 +46,10 @@ namespace Api.Controllers
             return BadRequest();
         }
 
+        [AuthorizeRole("Admin")]
         [HttpDelete("{id}")]
-        public async Task<ActionResult<DtoProduct_Id_Name_Category_Price_Desc_Image>> Delete(
-            int id,
-            [FromHeader] int userId,   
-            [FromHeader] string password)
+        public async Task<ActionResult<DtoProduct_Id_Name_Category_Price_Desc_Image>> Delete(int id)
         {
-           
-            bool isAdmin = await _userService.IsAdminById(userId, password);
-            if (!isAdmin)
-            {
-                return Forbid("גישה נדחתה: דרושות הרשאות מנהל למחיקת מוצר");
-            }
-
             DtoProduct_Id_Name_Category_Price_Desc_Image res = await _s.Delete(id);
 
             if (res != null)
@@ -75,6 +58,8 @@ namespace Api.Controllers
             }
             return NotFound($"Product with ID {id} not found");
         }
+
+        [AllowAnonymous]
         [HttpGet("{id}")]
         public async Task<DtoProduct_Id_Name_Category_Price_Desc_Image> Get(int id)
         {
@@ -82,6 +67,7 @@ namespace Api.Controllers
         }
 
         // ===== נוסף עבור הקריאה ל-AI - מחזיר מוצרים לפי רשימת IDs =====
+        [AllowAnonymous]
         [HttpGet("by-ids")]
         public async Task<List<DtoProduct_Id_Name_Category_Price_Desc_Image>> GetByIds([FromQuery] int[] ids)
         {
@@ -105,10 +91,9 @@ namespace Api.Controllers
         }
 
         // ===== נוסף עבור העלאת תמונות למנהל - התחלה =====
+        [AuthorizeRole("Admin")]
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadProductWithImages(
-            [FromHeader] int userId,
-            [FromHeader] string password)
+        public async Task<IActionResult> UploadProductWithImages()
         {
             try
             {
@@ -124,10 +109,6 @@ namespace Api.Controllers
                 var description = form["description"].ToString();
                 var price = decimal.Parse(form["price"].ToString());
                 var categoryId = int.Parse(form["categoryId"].ToString());
-
-                bool isAdmin = await _userService.IsAdminById(userId, password);
-                if (!isAdmin)
-                    return StatusCode(403, new { message = "אין הרשאות מנהל" });
 
                 var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "products");
                 Directory.CreateDirectory(uploadsFolder);

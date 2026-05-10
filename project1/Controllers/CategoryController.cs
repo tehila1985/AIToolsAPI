@@ -1,4 +1,6 @@
-﻿using Dto;
+﻿using Api.Auth;
+using Dto;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services;
 using System.Collections.Generic;
@@ -11,34 +13,25 @@ namespace Api.Controllers
     {
         private readonly ILogger<CategoryController> _logger;
         private readonly ICategoryService _s;
-        private readonly IUserServices _userService; 
 
-        public CategoryController(ICategoryService i, ILogger<CategoryController> logger, IUserServices userService)
+        public CategoryController(ICategoryService i, ILogger<CategoryController> logger)
         {
             _s = i;
             _logger = logger;
-            _userService = userService;
         }
 
         // GET: api/<CategoryController>
+        [AllowAnonymous]
         [HttpGet]
         public async Task<IEnumerable<DtoCategory_Name_Id>> Get()
         {
             return await _s.GetCategories();
         }
 
+        [AuthorizeRole("Admin")]
         [HttpPost]
-        public async Task<ActionResult<DtoCategory_Name_Id>> Post(
-            [FromBody] DtocategoryAll categoryDto, 
-            [FromHeader] int userId,
-            [FromHeader] string password)
+        public async Task<ActionResult<DtoCategory_Name_Id>> Post([FromBody] DtocategoryAll categoryDto)
         {
-            bool isAdmin = await _userService.IsAdminById(userId, password);
-            if (!isAdmin)
-            {
-                return Forbid("גישה נדחתה: פעולה זו שמורה למנהלים בלבד");
-            }
-
             DtoCategory_Name_Id res = await _s.AddNewCategory(categoryDto);
             if (res != null)
             {
@@ -47,18 +40,10 @@ namespace Api.Controllers
             return BadRequest("נכשל בהוספת הקטגוריה");
         }
 
+        [AuthorizeRole("Admin")]
         [HttpDelete("{id}")]
-        public async Task<ActionResult<DtoCategory_Name_Id>> Delete(
-            int id,
-            [FromHeader] int userId,
-            [FromHeader] string password)
+        public async Task<ActionResult<DtoCategory_Name_Id>> Delete(int id)
         {
-            bool isAdmin = await _userService.IsAdminById(userId, password);
-            if (!isAdmin)
-            {
-                return Forbid("גישה נדחתה: מחיקת קטגוריה דורשת הרשאות מנהל");
-            }
-
             DtoCategory_Name_Id res = await _s.Delete(id);
 
             if (res != null)
@@ -69,10 +54,9 @@ namespace Api.Controllers
         }
 
         // ===== נוסף עבור העלאת תמונות למנהל - התחלה =====
+        [AuthorizeRole("Admin")]
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadCategoryWithImage(
-            [FromHeader] int userId,
-            [FromHeader] string password)
+        public async Task<IActionResult> UploadCategoryWithImage()
         {
             try
             {
@@ -84,10 +68,6 @@ namespace Api.Controllers
 
                 var name = form["name"].ToString();
                 var description = form["description"].ToString();
-
-                bool isAdmin = await _userService.IsAdminById(userId, password);
-                if (!isAdmin)
-                    return StatusCode(403, new { message = "אין הרשאות מנהל" });
 
                 var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "categories");
                 Directory.CreateDirectory(uploadsFolder);

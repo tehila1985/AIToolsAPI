@@ -1,4 +1,6 @@
-﻿using Dto;
+﻿using Api.Auth;
+using Dto;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services;
 
@@ -10,34 +12,25 @@ namespace Api.Controllers
     {
         private readonly ILogger<StyleController> _logger;
         private readonly IStyleService _s;
-        private readonly IUserServices _userService;
 
-        public StyleController(IStyleService i, ILogger<StyleController> logger, IUserServices userService)
+        public StyleController(IStyleService i, ILogger<StyleController> logger)
         {
             _s = i;
             _logger = logger;
-            _userService = userService; 
         }
 
         // GET: api/<StyleController>
+        [AllowAnonymous]
         [HttpGet]
         public async Task<IEnumerable<DtoSyle_id_name>> Get()
         {
             return await _s.GetStyles();
         }
 
+        [AuthorizeRole("Admin")]
         [HttpPost]
-        public async Task<ActionResult<DtoSyle_id_name>> Post(
-            [FromBody] DtoStyleAll StyleDto,
-            [FromHeader] int userId,
-            [FromHeader] string password)
+        public async Task<ActionResult<DtoSyle_id_name>> Post([FromBody] DtoStyleAll StyleDto)
         {
-            bool isAdmin = await _userService.IsAdminById(userId, password);
-            if (!isAdmin)
-            {
-                return Forbid("גישה נדחתה: דרושות הרשאות מנהל להוספת סגנון");
-            }
-
             DtoSyle_id_name res = await _s.AddNewStyle(StyleDto);
             if (res != null)
             {
@@ -46,18 +39,10 @@ namespace Api.Controllers
             return BadRequest("נכשל בהוספת הסגנון");
         }
 
+        [AuthorizeRole("Admin")]
         [HttpDelete("{id}")]
-        public async Task<ActionResult<DtoSyle_id_name>> Delete(
-            int id,
-            [FromHeader] int userId,
-            [FromHeader] string password)
+        public async Task<ActionResult<DtoSyle_id_name>> Delete(int id)
         {
-            bool isAdmin = await _userService.IsAdminById(userId, password);
-            if (!isAdmin)
-            {
-                return Forbid("גישה נדחתה: דרושות הרשאות מנהל למחיקת סגנון");
-            }
-
             DtoSyle_id_name res = await _s.Delete(id);
 
             if (res != null)
@@ -68,10 +53,9 @@ namespace Api.Controllers
         }
 
         // ===== נוסף עבור העלאת תמונות למנהל - התחלה =====
+        [AuthorizeRole("Admin")]
         [HttpPost("upload")]
-        public async Task<IActionResult> UploadStyleWithImage(
-            [FromHeader] int userId,
-            [FromHeader] string password)
+        public async Task<IActionResult> UploadStyleWithImage()
         {
             try
             {
@@ -83,10 +67,6 @@ namespace Api.Controllers
 
                 var name = form["name"].ToString();
                 var description = form["description"].ToString();
-
-                bool isAdmin = await _userService.IsAdminById(userId, password);
-                if (!isAdmin)
-                    return StatusCode(403, new { message = "אין הרשאות מנהל" });
 
                 var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "styles");
                 Directory.CreateDirectory(uploadsFolder);

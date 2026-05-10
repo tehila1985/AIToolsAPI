@@ -1,9 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization.Infrastructure;
+﻿using Api.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Collections.Specialized;
-using System.Text.Json;
 using Services;
-using static project1.Controllers.Userscontroller;
 using Dto;
 using Repository.Models;
 
@@ -16,6 +14,7 @@ namespace project1.Controllers
     [ApiController]
     public class Userscontroller : ControllerBase
     {
+        private const string AuthCookieName = "auth_token";
         IUserServices _s;
         private readonly ILogger<Userscontroller> _logger;
         public Userscontroller(IUserServices i, ILogger<Userscontroller> logger)
@@ -25,6 +24,7 @@ namespace project1.Controllers
         }
 
         //GET: api/<users>
+        [AuthorizeRole("Admin")]
         [HttpGet]
         public async Task<IEnumerable<User>> Get()
         {
@@ -32,6 +32,7 @@ namespace project1.Controllers
         }
 
         // GET api/<users>/5
+        [Authorize]
         [HttpGet("{id}")]
         public async Task<ActionResult<DtoUser_Name_Gmail_Role_Id>> Get(int id)
         {
@@ -44,27 +45,31 @@ namespace project1.Controllers
         }
         // POST api/<users>
 
+        [AllowAnonymous]
         [HttpPost]
-        public async Task<ActionResult<DtoUser_Name_Gmail_Role_Id>> Post([FromBody] DtoUser_All user)
+        public async Task<ActionResult<DtoAuthResponse>> Post([FromBody] DtoUser_All user)
         {
 
-            DtoUser_Name_Gmail_Role_Id res = await _s.AddNewUser(user);
+            DtoAuthResponse res = await _s.AddNewUser(user);
             if (res!=null)
             {
-                return CreatedAtAction(nameof(Get), new { id = res.UserId }, res);
+                WriteAuthCookie(res.Token);
+                return CreatedAtAction(nameof(Get), new { id = res.User.UserId }, res);
             }
             else
                 return BadRequest();
         }
 
         //POST
+        [AllowAnonymous]
         [HttpPost("Login")]
-        public async Task<ActionResult<DtoUser_Name_Gmail_Role_Id>> Login([FromBody] DtoUser_Gmail_Password user)
+        public async Task<ActionResult<DtoAuthResponse>> Login([FromBody] DtoUser_Gmail_Password user)
         {
-            DtoUser_Name_Gmail_Role_Id res = await _s.Login(user);
+            DtoAuthResponse res = await _s.Login(user);
             if(res!=null)
             {
-                _logger.LogInformation($"login attempted with user name,{user.Email} and password {user.PasswordHash}");
+                WriteAuthCookie(res.Token);
+                _logger.LogInformation("User login succeeded for email {Email}", user.Email);
                 return Ok(res);
             }  
             return NotFound();
@@ -73,6 +78,7 @@ namespace project1.Controllers
 
 
         // PUT api/<users>/5
+        [Authorize]
         [HttpPut("{id}")]
         public async Task<ActionResult<DtoUser_Name_Gmail_Role_Id>> Put(int id, [FromBody] DtoUser_All value)
         {
@@ -83,6 +89,17 @@ namespace project1.Controllers
             }
             else
                 return BadRequest();  
+        }
+
+        private void WriteAuthCookie(string token)
+        {
+            Response.Cookies.Append(AuthCookieName, token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = false,
+                SameSite = SameSiteMode.Lax,
+                Expires = DateTimeOffset.UtcNow.AddHours(2)
+            });
         }
     }
 }

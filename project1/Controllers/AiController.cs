@@ -1,4 +1,5 @@
 ﻿using Dto;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services;
 using System.Collections.Generic;
@@ -10,6 +11,7 @@ namespace Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowAnonymous]
     public class AiController : ControllerBase
     {
         private readonly IAiService _aiService;
