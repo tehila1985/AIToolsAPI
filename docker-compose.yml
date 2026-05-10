@@ -1,0 +1,8 @@
+services:
+  my-redis-db:
+    image: redis:latest
+    container_name: redis-service
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass P@ssw0rd123
+    restart: always

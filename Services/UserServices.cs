@@ -1,6 +1,8 @@
 ﻿using AutoMapper;
 using Dto;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Configuration;
 using Repository;
 using Repository.Models;
 using System.Text.Json;
@@ -13,15 +15,35 @@ namespace Services
         IUserRepository _r;
         IMapper _mapper;
         IPasswordService _passwordService;
-        public UserServices(IUserRepository i, IMapper mapperr, IPasswordService passwordService)
+        IDistributedCache _cache;
+        IConfiguration _configuration;
+        public UserServices(IUserRepository i, IMapper mapperr, IPasswordService passwordService, IDistributedCache cache, IConfiguration configuration)
         {
             _r = i;
             _mapper = mapperr;
             _passwordService = passwordService;
+            _cache = cache;
+            _configuration = configuration;
         }
+        private const string CacheKey = "all_users_list";
         public async Task<IEnumerable<User>> GetUsers()
         {
-            return await _r.GetUsers();
+            var cachedUsers = await _cache.GetStringAsync(CacheKey);
+            if (!string.IsNullOrEmpty(cachedUsers))
+            {
+                return JsonSerializer.Deserialize<List<User>>(cachedUsers) ?? new List<User>();
+            }
+
+            var users = await _r.GetUsers();
+
+            var ttlMinutes = _configuration.GetValue<int>("RedisSettings:DefaultTTLInMinutes");
+            var options = new DistributedCacheEntryOptions()
+                .SetAbsoluteExpiration(TimeSpan.FromMinutes(ttlMinutes));
+
+            var serializedData = JsonSerializer.Serialize(users);
+            await _cache.SetStringAsync(CacheKey, serializedData, options);
+
+            return users;
         }
         public async Task<DtoUser_Name_Gmail_Role_Id?> GetUserById(int id)
         {
@@ -38,6 +60,7 @@ namespace Services
                 var userEntity = _mapper.Map<DtoUser_All, User>(user);
                 userEntity.Role = "Customer";
                 var res = await _r.AddNewUser(userEntity);
+                await _cache.RemoveAsync(CacheKey);
                 var dtoUser = _mapper.Map<User, DtoUser_Name_Gmail_Role_Id>(res);
                 return dtoUser;
             }
@@ -67,6 +90,7 @@ namespace Services
             _mapper.Map(userDto, existingUser);
             existingUser.UserId = id;
             var res = await _r.update(id, existingUser);
+            await _cache.RemoveAsync(CacheKey);
 
             return _mapper.Map<User, DtoUser_Name_Gmail_Role_Id>(res);
         }
