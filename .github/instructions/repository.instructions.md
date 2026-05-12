@@ -1,4 +1,4 @@
-# Repository Layer Onboarding — CozyGen (Data Access)
+# Repository Layer Onboarding â€“ CozyGen (Data Access)
 
 ## Purpose
 Guide for agents working on the data access layer. Covers structure, entity relationships, conventions, migrations, and testing.
@@ -23,20 +23,20 @@ Guide for agents working on the data access layer. Covers structure, entity rela
 | `repository/*Repository.cs` | Implementations (note: file `userRepository.cs` is lowercase, `RatingRepository .cs` has trailing space) |
 | `Tests/*RepositoryUnitTests.cs` | Unit tests (Moq-based `DbSet<T>` mocking) |
 | `Tests/*IntegrationTests.cs` | Integration tests using `DatabaseFixture` with EF InMemory |
-| `Tests/TestAsyncHelpers.cs` | `TestAsyncQueryProvider<T>`, `TestAsyncEnumerable<T>`, `TestAsyncEnumerator<T>` — required for mocking async EF queries |
+| `Tests/TestAsyncHelpers.cs` | `TestAsyncQueryProvider<T>`, `TestAsyncEnumerable<T>`, `TestAsyncEnumerator<T>` â€“ required for mocking async EF queries |
 | `Tests/DatabaseFixture.cs` | Creates `InMemoryDatabase`, provides `ClearDatabase()`, implements `IDisposable` |
 
 ## Entity Relationship Map
 ```
-User 1??* Order 1??* OrderItem *??1 Product
-Category 1??* Product *??* Style (via ProductStyle junction table)
-Rating (standalone — no FKs to other entities)
+User 1â†’* Order 1â†’* OrderItem *â†’1 Product
+Category 1â†’* Product *â†’* Style (via ProductStyle junction table)
+Rating (standalone â€“ no FKs to other entities)
 ```
 
 ## Existing Repository Pattern (follow exactly)
 Each repository:
 1. Takes `myDBContext` via constructor injection.
-2. Stores it in a field named `dbContext` (not `_dbContext` — this is the existing convention).
+2. Stores it in a field named `dbContext` (not `_dbContext` â€“ this is the existing convention).
 3. Returns entities directly (not DTOs); mapping is the Service layer's job.
 4. Uses async methods: `ToListAsync()`, `FirstOrDefaultAsync()`, `AddAsync()`, `SaveChangesAsync()`.
 5. Uses `.Include()` / `.ThenInclude()` for eager loading when navigation properties are needed.
@@ -55,17 +55,17 @@ public class OrderRepository : IOrderRepository
 - Types: PascalCase (severity: error)
 - Methods: PascalCase (severity: warning)
 - Parameters: camelCase (severity: warning)
-- Private fields: `_camelCase` prefix (severity: warning) — **note:** existing repos use `dbContext` without underscore; keep consistent with existing code when editing existing files
+- Private fields: `_camelCase` prefix (severity: warning) â€“ **note:** existing repos use `dbContext` without underscore; keep consistent with existing code when editing existing files
 - Interfaces: prefix with `I`
 
 ## Migrations & DB Commands
 1. Install tool: `dotnet tool install --global dotnet-ef`
 2. Add migration: `dotnet ef migrations add <Name> -p repository -s project1`
 3. Apply: `dotnet ef database update -p repository -s project1`
-4. No migrations are checked in — create them as part of schema changes.
+4. No migrations are checked in â€“ create them as part of schema changes.
 
 ## Configuration
--ction string key used by `Program.cs`: `"Tehila"` (others exist: `Rivka`, `Seminary`).
+Connection string key used by `Program.cs`: `"Tehila"` (others exist: `Rivka`, `Seminary`).
 - Override via env var: `ConnectionStrings__Tehila=...` or `.env` file at repo root.
 
 ## Testing Patterns
@@ -92,10 +92,10 @@ public class MyTests : IClassFixture<DatabaseFixture> { ... }
 ```
 
 ## Gotchas
-- `OrderRepository.AddNewOrder()` decrements `Product.Stock` directly — this is cross-entity business logic living in the repo layer (existing pattern, don't move without coordinating with Service layer).
-- `Rating` entity uses namespace `Entities` (not `Repository.Models`) — match this when referencing it.
-- File naming inconsistency: `userRepository.cs` (lowercase u), `RatingRepository .cs` (trailing space) — be aware when searching by filename.
-- `Repository.csproj` references `Swashbuckle.AspNetCore.Swagger` — likely unused at the repo layer but exists.
+- `OrderRepository.AddNewOrder()` decrements `Product.Stock` directly â€“ this is cross-entity business logic living in the repo layer (existing pattern, don't move without coordinating with Service layer).
+- `Rating` entity uses namespace `Entities` (not `Repository.Models`) â€“ match this when referencing it.
+- File naming inconsistency: `userRepository.cs` (lowercase u), `RatingRepository .cs` (trailing space) â€“ be aware when searching by filename.
+- `Repository.csproj` references `Swashbuckle.AspNetCore.Swagger` â€“ likely unused at the repo layer but exists.
 
 ## Checklist for Adding a New Entity
 1. Create entity class in `User/` project, namespace `Repository.Models`.
@@ -106,5 +106,9 @@ public class MyTests : IClassFixture<DatabaseFixture> { ... }
 6. Add unit tests in `Tests/` following the Moq + TestAsyncHelpers pattern.
 7. Run `dotnet build` and `dotnet test Tests` to validate.
 
-See `.github/copilot-instructions-api.md` for Service/Controller/DTO layer instructions.
+See `.github/instructions/api.instructions.md` for Service/Controller/DTO layer instructions.
 See `.github/configs/microservices-implementation-plan.md` for future architecture direction.
+
+## Cross-References
+- API/Service layer details: `.github/instructions/api.instructions.md`
+- Microservices architecture plan: `.github/configs/microservices-implementation-plan.md`
