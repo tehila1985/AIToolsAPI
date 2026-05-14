@@ -69,6 +69,7 @@ namespace Services
             {
                 
                 var userEntity = _mapper.Map<DtoUser_All, User>(user);
+                userEntity.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
                 userEntity.Role = "Customer";
                 var res = await _r.AddNewUser(userEntity);
                 await TryRemoveUsersCache();
@@ -88,7 +89,7 @@ namespace Services
             var a = _mapper.Map<DtoUser_Gmail_Password, User>(value);
             var u = await _r.Login(a);
 
-            if (u == null) return null;
+            if (u == null || !BCrypt.Net.BCrypt.Verify(value.PasswordHash, u.PasswordHash)) return null;
 
             var dtoUser = _mapper.Map<User, DtoUser_Name_Gmail_Role_Id>(u);
             return new DtoAuthResponse
@@ -108,6 +109,7 @@ namespace Services
             if (existingUser == null) return null;
             _mapper.Map(userDto, existingUser);
             existingUser.UserId = id;
+            existingUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(userDto.PasswordHash);
             var res = await _r.update(id, existingUser);
             await TryRemoveUsersCache();
 
@@ -116,9 +118,8 @@ namespace Services
       
         public async Task<bool> IsAdminById(int id, string password)
         {
-           
-            var user = await _r.GetUserByIdAndPassword(id, password);
-            if (user != null && user.Role == "Admin")
+            var user = await _r.GetUserById(id);
+            if (user != null && user.Role == "Admin" && BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             {
                 return true;
             }
