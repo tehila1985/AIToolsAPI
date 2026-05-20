@@ -141,7 +141,7 @@ builder.Services.AddScoped<IStyleRepository, StyleRepository>();
 builder.Services.AddScoped<IProductService, ProductService>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddHttpClient<IAiService, AiService>();
-
+builder.Services.AddSingleton<AIToolsAPI.Services.IKafkaProducerService, AIToolsAPI.Services.KafkaProducerService>();
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())

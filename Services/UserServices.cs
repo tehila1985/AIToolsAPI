@@ -83,21 +83,46 @@ namespace Services
 
             return null;
         }
+public async Task<DtoAuthResponse?> Login(DtoUser_Gmail_Password value)
+{
+    var a = _mapper.Map<DtoUser_Gmail_Password, User>(value);
+    var u = await _r.Login(a);
 
-        public async Task<DtoAuthResponse?> Login(DtoUser_Gmail_Password value)
+    if (u == null) return null;
+
+    bool isPasswordValid = false;
+
+    if (u.PasswordHash.StartsWith("$2a$") || u.PasswordHash.StartsWith("$2b$") || u.PasswordHash.StartsWith("$2y$"))
+    {
+        isPasswordValid = BCrypt.Net.BCrypt.Verify(value.PasswordHash, u.PasswordHash);
+    }
+    else
+    {
+        isPasswordValid = (value.PasswordHash == u.PasswordHash);
+
+        if (isPasswordValid)
         {
-            var a = _mapper.Map<DtoUser_Gmail_Password, User>(value);
-            var u = await _r.Login(a);
-
-            if (u == null || !BCrypt.Net.BCrypt.Verify(value.PasswordHash, u.PasswordHash)) return null;
-
-            var dtoUser = _mapper.Map<User, DtoUser_Name_Gmail_Role_Id>(u);
-            return new DtoAuthResponse
+            try
             {
-                User = dtoUser,
-                Token = GenerateJwtToken(u)
-            };
+                u.PasswordHash = BCrypt.Net.BCrypt.HashPassword(value.PasswordHash);
+                await _r.update(u.UserId, u);
+                await TryRemoveUsersCache();
+            }
+            catch
+            {
+            }
         }
+    }
+
+    if (!isPasswordValid) return null;
+
+    var dtoUser = _mapper.Map<User, DtoUser_Name_Gmail_Role_Id>(u);
+    return new DtoAuthResponse
+    {
+        User = dtoUser,
+        Token = GenerateJwtToken(u)
+    };
+}
        
         public async Task<DtoUser_Name_Gmail_Role_Id> update(int id, DtoUser_All userDto)
         {
