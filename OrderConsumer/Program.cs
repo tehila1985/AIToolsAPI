@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using Confluent.Kafka;
 
@@ -8,30 +8,32 @@ namespace OrderConsumer
     {
         static void Main(string[] args)
         {
-            string bootstrapServers = "localhost:9092";
-         string topic = "order-notifications";
-            string groupId = "final-test-group-xyz"; 
             var config = new ConsumerConfig
             {
-                BootstrapServers = bootstrapServers,
-                GroupId = groupId,
+                BootstrapServers = "localhost:9092",
+                GroupId = "debug-group-" + Guid.NewGuid(),
                 AutoOffsetReset = AutoOffsetReset.Earliest,
-                EnableAutoCommit = true, 
-                
+                EnableAutoCommit = false,
                 ApiVersionFallbackMs = 0,
-                BrokerAddressFamily = BrokerAddressFamily.V4
+                BrokerAddressFamily = BrokerAddressFamily.V4,
+                SessionTimeoutMs = 45000,
+                HeartbeatIntervalMs = 3000,
             };
 
-            using var consumer = new ConsumerBuilder<Ignore, string>(config).Build();
             using var cts = new CancellationTokenSource();
-            
-            Console.CancelKeyPress += (sender, e) => {
-                e.Cancel = true;
-                cts.Cancel();
-            };
+            Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-          
-            consumer.Subscribe(topic);
+            using var consumer = new ConsumerBuilder<string, string>(config)
+                .SetErrorHandler((_, err) =>
+                    Console.WriteLine($"[ERROR] {err.Code} | {err.Reason} | Fatal:{err.IsFatal}"))
+                .SetPartitionsAssignedHandler((c, partitions) =>
+                    Console.WriteLine($"[ASSIGNED] {string.Join(", ", partitions)}"))
+                .SetPartitionsRevokedHandler((c, partitions) =>
+                    Console.WriteLine($"[REVOKED] {string.Join(", ", partitions)}"))
+                .Build();
+
+            consumer.Subscribe("order-notifications");
+            Console.WriteLine("[Consumer] Subscribed. Waiting for partition assignment...");
 
             try
             {
@@ -39,33 +41,27 @@ namespace OrderConsumer
                 {
                     try
                     {
-                        
                         var result = consumer.Consume(cts.Token);
-                        
                         if (result is null) continue;
 
                         Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine($"\n[New Message Received] Partition: {result.Partition}, Offset: {result.Offset}");
+                        Console.WriteLine($"\n[Message] Partition:{result.Partition} Offset:{result.Offset}");
                         Console.ResetColor();
-                        
-                        Console.WriteLine($"Raw Order Data: {result.Message.Value}");
+                        Console.WriteLine($"Value: {result.Message.Value}");
 
                         consumer.Commit(result);
                     }
                     catch (ConsumeException e)
                     {
-                        Console.WriteLine($"[Kafka Error] Consume error: {e.Error.Reason}");
+                        Console.WriteLine($"[ConsumeException] {e.Error.Code} | {e.Error.Reason}");
                     }
                 }
             }
-            catch (OperationCanceledException)
-            {
-
-            }
+            catch (OperationCanceledException) { }
             finally
             {
                 consumer.Close();
-                Console.WriteLine("[Consumer] Order Consumer stopped.");
+                Console.WriteLine("[Consumer] Stopped.");
             }
         }
     }
