@@ -1,38 +1,37 @@
 ﻿using System;
 using System.Threading;
-using System.Threading.Tasks;
 using Confluent.Kafka;
 
 namespace OrderConsumer
 {
     class Program
     {
-        static async Task Main(string[] args)
+        static void Main(string[] args)
         {
-    
             string bootstrapServers = "localhost:9092";
-            string topic = "order-notifications";
-            string groupId = "order-log-consumer-group-v2";
-
-            Console.WriteLine($"[Consumer] Starting Order Consumer... Topic: '{topic}', Group: '{groupId}'");
-
+         string topic = "order-notifications";
+            string groupId = "final-test-group-xyz"; 
             var config = new ConsumerConfig
             {
                 BootstrapServers = bootstrapServers,
                 GroupId = groupId,
                 AutoOffsetReset = AutoOffsetReset.Earliest,
-                EnableAutoCommit = false
+                EnableAutoCommit = true, 
+                
+                ApiVersionFallbackMs = 0,
+                BrokerAddressFamily = BrokerAddressFamily.V4
             };
 
             using var consumer = new ConsumerBuilder<Ignore, string>(config).Build();
-
             using var cts = new CancellationTokenSource();
             
-           
             Console.CancelKeyPress += (sender, e) => {
                 e.Cancel = true;
                 cts.Cancel();
             };
+
+          
+            consumer.Subscribe(topic);
 
             try
             {
@@ -40,12 +39,11 @@ namespace OrderConsumer
                 {
                     try
                     {
-                       
+                        
                         var result = consumer.Consume(cts.Token);
                         
                         if (result is null) continue;
 
-                        
                         Console.ForegroundColor = ConsoleColor.Green;
                         Console.WriteLine($"\n[New Message Received] Partition: {result.Partition}, Offset: {result.Offset}");
                         Console.ResetColor();
@@ -62,7 +60,7 @@ namespace OrderConsumer
             }
             catch (OperationCanceledException)
             {
-               
+
             }
             finally
             {
