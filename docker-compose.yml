@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   my-redis-db:
     image: redis:latest
@@ -44,3 +42,15 @@ services:
     depends_on:
       - kafka
     restart: always
+
+  mongodb:
+    image: mongo:latest
+    container_name: webapishop-mongo
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: always
+
+volumes:
+  mongo_data:
